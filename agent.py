@@ -1,70 +1,50 @@
 import os
+from dotenv import load_dotenv
+from groq import Groq
 
-OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-USE_OPENAI = OPENAI_KEY is not None
+# Cargamos las variables de entorno del archivo .env
+load_dotenv()
 
-try:
-    import openai
-except ImportError:
-    openai = None
-    USE_OPENAI = False
+# Inicializamos el cliente de Groq de forma segura
+API_KEY_GROQ = os.getenv("API_KEY_GROQ")
+client = Groq(api_key=API_KEY_GROQ)
 
-if USE_OPENAI and openai is not None:
-    openai.api_key = OPENAI_KEY
+PROMPT_SISTEMA = """
+Eres un asistente experto en bases de datos relacionales de MySQL. 
+Tu única tarea es traducir preguntas en lenguaje natural (español) a consultas SQL válidas basadas exclusivamente en este esquema:
 
-SCHEMA_DESCRIPTION = """
-Tablas disponibles:
-- libros(id, titulo, autor, genero, año_publicacion)
-- prestamos(id, libro_id, usuario, fecha_prestamo, fecha_devolucion)
+Tablas del sistema:
+- autor (id_autor, nombre, apellido, nacionalidad)
+- genero (id_genero, nombre, descripcion)
+- libro (isbn, titulo, anio_publicacion, stock_total, stock_disponible)
+- libro_autor (isbn, id_autor)
+- libro_genero (isbn, id_genero)
+- ejemplar (id_ejemplar, isbn, nro_ejemplar, estado_fisico)
+- socio (id_socio, dni, nombre, apellido, email, fecha_alta, estado)
+- prestamo (id_prestamo, id_socio, id_ejemplar, fecha_prestamo, fecha_vencimiento, fecha_devolucion, estado)
+- sancion (id_sancion, id_socio, tipo, fecha_inicio, fecha_fin, motivo)
+
+Reglas de Negocio Cruciales:
+1. Para saber si un préstamo está vencido, debes consultar la tabla `prestamo` filtrando por `estado = 'VENCIDO'`. NO uses la tabla sancion para esto a menos que se pida explícitamente.
+2. Si se piden datos de los socios, une `socio` con `prestamo` usando `id_socio`.
+3. Los únicos valores posibles para la columna `estado` en la tabla `socio` son 'ACTIVO' o 'SUSPENDIDO'. Si te piden socios suspendidos, usa exactamente 'SUSPENDIDO'.
+4. Responde ÚNICAMENTE con la consulta SQL pura. NO uses bloques de código Markdown (```sql), ni agregues texto extra. Solo el texto del SELECT.
+5. Si te piden libros con préstamos simultáneos o solapados en el tiempo, debes cruzar la tabla `ejemplar` y `prestamo` dos veces (hacer un Self-Join implícito por libro). La condición matemática para que dos préstamos (p1 y p2) del mismo libro (mismo isbn) pero de distintos ejemplares (p1.id_ejemplar <> p2.id_ejemplar) se hayan superpuesto en el tiempo es: (p1.fecha_prestamo <= p2.fecha_devolucion AND p1.fecha_devolucion >= p2.fecha_prestamo).
 """
 
-PROMPT_TEMPLATE = """
-Eres un generador de consultas SQL para una base de datos de biblioteca.
-Devuelve únicamente una consulta SQL válida de tipo SELECT.
-No incluyas explicaciones, solo la consulta SQL final.
-Si la pregunta no puede traducirse a SQL, devuelve una consulta SELECT que no da resultados.
-{schema}
-
-Pregunta: "{pregunta}"
-"""
-
-
-def _normalize_sql(sql: str) -> str:
-    text = sql.strip()
-    if text.startswith("```") and text.endswith("```"):
-        text = text[3:-3].strip()
-    if "```" in text:
-        parts = text.split("```")
-        if len(parts) > 1:
-            text = parts[1].strip()
-    return text
-
-
-def pregunta_a_sql(pregunta: str) -> str:
-    pregunta = pregunta.strip()
-
-    if USE_OPENAI and openai is not None:
-        prompt = PROMPT_TEMPLATE.format(schema=SCHEMA_DESCRIPTION, pregunta=pregunta)
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-            max_tokens=300,
+def pregunta_a_sql(pregunta_usuario: str) -> str:
+    """
+    Traduce una pregunta en lenguaje natural a una consulta SQL pura usando Llama 3.3 en Groq.
+    """
+    try:
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": PROMPT_SISTEMA},
+                {"role": "user", "content": pregunta_usuario}
+            ],
+            temperature=0.0
         )
-        sql = _normalize_sql(response.choices[0].message.content)
-        return sql
-
-    # Fallback simple rule-based generator
-    lower = pregunta.lower()
-    if "cien años de soledad" in lower:
-        return "SELECT * FROM libros WHERE titulo = 'Cien años de soledad';"
-    if "gabriel garcía márquez" in lower or "garcía márquez" in lower:
-        return "SELECT * FROM libros WHERE autor = 'Gabriel García Márquez';"
-    if "libros" in lower and "misterio" in lower:
-        return "SELECT * FROM libros WHERE genero = 'Misterio';"
-    if "prestamos" in lower or "prestado" in lower:
-        return "SELECT prestamos.*, libros.titulo FROM prestamos JOIN libros ON prestamos.libro_id = libros.id;"
-    if "usuarios" in lower or "persona" in lower:
-        return "SELECT * FROM prestamos;"
-
-    return "SELECT * FROM libros LIMIT 10;"
+        return completion.choices[0].message.content.strip()
+    except Exception as e:
+        return f"-- Error al procesar la solicitud con la IA: {e}"
