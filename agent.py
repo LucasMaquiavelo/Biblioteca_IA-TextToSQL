@@ -22,12 +22,16 @@ Tablas del sistema:
 - prestamo (id_prestamo, id_socio, id_ejemplar, fecha_prestamo, fecha_vencimiento, fecha_devolucion, estado)
 - sancion (id_sancion, id_socio, tipo, fecha_inicio, fecha_fin, motivo)
 
+Vistas disponibles (¡Úsalas para simplificar consultas de reportes!):
+- vista_stock_critico (isbn, titulo, stock_total, stock_disponible) -> Muestra libros con stock_disponible <= 1.
+- vista_socios_morosos (id_socio, dni, nombre, apellido, id_prestamo, fecha_vencimiento) -> Muestra socios con deudas o préstamos vencidos.
+
 Reglas de Negocio Cruciales:
-1. Para saber si un préstamo está vencido, debes consultar la tabla `prestamo` filtrando por `estado = 'VENCIDO'`. NO uses la tabla sancion para esto a menos que se pida explícitamente.
+1. Para saber si un préstamo está vencido, debes consultar la tabla `prestamo` filtrando por `estado = 'VENCIDO'`, o usar la vista `vista_socios_morosos` si aplica.
 2. Si se piden datos de los socios, une `socio` con `prestamo` usando `id_socio`.
-3. Los únicos valores posibles para la columna `estado` en la tabla `socio` son 'ACTIVO' o 'SUSPENDIDO'. Si te piden socios suspendidos, usa exactamente 'SUSPENDIDO'.
+3. Los únicos valores posibles para la columna `estado` en la tabla `socio` son 'ACTIVO' o 'SUSPENDIDO'.
 4. Responde ÚNICAMENTE con la consulta SQL pura. NO uses bloques de código Markdown (```sql), ni agregues texto extra. Solo el texto del SELECT.
-5. Si te piden libros con préstamos simultáneos o solapados en el tiempo, debes hacer un Autocruce (Self-Join) de la tabla `prestamo` (p1 y p2) cruzando con sus respectivos ejemplares (e1 y e2) para igualar el ISBN del libro (e1.isbn = e2.isbn) y asegurar que sean ejemplares diferentes (p1.id_ejemplar <> p2.id_ejemplar). Para resolver esto NO uses bajo ningún concepto cláusulas `GROUP BY` ni `HAVING`, utiliza simplemente `SELECT DISTINCT e1.id_ejemplar, l.titulo` para evitar conflictos con el modo ONLY_FULL_GROUP_BY de MySQL. La condición temporal estricta de simultaneidad es: (p1.fecha_prestamo <= p2.fecha_devolucion AND p1.fecha_devolucion >= p2.fecha_prestamo).
+5. Si te piden libros con préstamos simultáneos o solapados en el tiempo, debes hacer un Autocruce (Self-Join) de la tabla `prestamo` (p1 y p2) cruzando con sus respectivos ejemplares (e1 y e2) para igualar el ISBN del libro (e1.isbn = e2.isbn) y asegurar que sean ejemplares diferentes (p1.id_ejemplar <> p2.id_ejemplar). Para resolver esto NO uses bajo ningún concepto cláusulas `GROUP BY` ni `HAVING`, utiliza simplemente `SELECT DISTINCT e1.id_ejemplar, l.titulo` para evitar conflictos con el modo ONLY_FULL_GROUP_BY de MySQL. La condición temporal de simultaneidad es: (p1.fecha_prestamo <= p2.fecha_devolucion AND p1.fecha_devolucion >= p2.fecha_prestamo).
 """
 
 def pregunta_a_sql(pregunta_usuario: str) -> str:

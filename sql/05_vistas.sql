@@ -2,7 +2,7 @@
 CREATE OR REPLACE VIEW vista_stock_critico AS
 SELECT isbn, titulo, stock_total, stock_disponible
 FROM libro
-WHERE stock_disponible <= 1;
+WHERE stock_disponible <= 2;
 
 -- Vista 2: Reporte de socios morosos con préstamos activos vencidos
 CREATE OR REPLACE VIEW vista_socios_morosos AS
