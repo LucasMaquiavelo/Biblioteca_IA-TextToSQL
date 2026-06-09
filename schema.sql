@@ -95,3 +95,113 @@ CREATE TABLE sancion (
     FOREIGN KEY (id_socio) REFERENCES socio(id_socio) ON DELETE CASCADE,
     CHECK (fecha_fin >= fecha_inicio)
 );
+
+
+
+-- 1. sp_registrar_prestamo
+-- Valida las tres restricciones (sanciones, límite de 3 préstamos, estado del ejemplar), 
+-- inserta el registro y delega la actualización de stock al trigger que ya hicimos o la hace directamente.
+
+
+DELIMITER //
+
+CREATE PROCEDURE sp_registrar_prestamo(
+    IN p_id_socio INT,
+    IN p_id_ejemplar INT
+)
+BEGIN
+    DECLARE v_prestamos_activos INT;
+    DECLARE v_estado_socio VARCHAR(20);
+    DECLARE v_estado_ejemplar VARCHAR(20);
+
+    -- Verificar límites y estados
+    SELECT COUNT(*) INTO v_prestamos_activos FROM prestamo WHERE id_socio = p_id_socio AND estado = 'ACTIVO';
+    SELECT estado INTO v_estado_socio FROM socio WHERE id_socio = p_id_socio;
+    SELECT estado_fisico INTO v_estado_ejemplar FROM ejemplar WHERE id_ejemplar = p_id_ejemplar;
+
+    IF v_estado_socio = 'SUSPENDIDO' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: El socio posee sanciones activas.';
+    ELSEIF v_prestamos_activos >= 3 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: El socio ya alcanzó el límite de 3 préstamos activos.';
+    ELSEIF v_estado_ejemplar = 'BAJA' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: El ejemplar está dado de BAJA y no está disponible.';
+    ELSE
+        -- Registrar préstamo válido (por defecto 14 días de corrido)
+        INSERT INTO prestamo (id_socio, id_ejemplar, fecha_prestamo, fecha_vencimiento, estado)
+        VALUES (p_id_socio, p_id_ejemplar, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY), 'ACTIVO');
+    END IF;
+END //
+
+DELIMITER ;
+
+
+-- 2. sp_registrar_devolucion
+-- Registra la fecha de devolución. Si se pasó de la fecha de vencimiento, calcula los días de demora 
+-- y llama automáticamente al tercer procedimiento (sp_generar_sancion).
+
+
+DELIMITER //
+
+CREATE PROCEDURE sp_registrar_devolucion(
+    IN p_id_prestamo INT
+)
+BEGIN
+    DECLARE v_id_socio INT;
+    DECLARE v_fecha_vencimiento DATE;
+    DECLARE v_dias_mora INT;
+
+    -- Obtener datos del préstamo antes de actualizar
+    SELECT id_socio, fecha_vencimiento INTO v_id_socio, v_fecha_vencimiento 
+    FROM prestamo WHERE id_prestamo = p_id_prestamo;
+
+    -- Registrar la devolución en el día actual
+    UPDATE prestamo 
+    SET fecha_devolucion = CURRENT_DATE, estado = 'FINALIZADO'
+    WHERE id_prestamo = p_id_prestamo;
+
+    -- Verificar si hay mora (devolución posterior al vencimiento)
+    IF CURRENT_DATE > v_fecha_vencimiento THEN
+        SET v_dias_mora = DATEDIFF(CURRENT_DATE, v_fecha_vencimiento);
+        
+        -- Llamada automática al procedimiento de sanción
+        CALL sp_generar_sancion(v_id_socio, 'SUSPENDIDO', v_dias_mora);
+    END IF;
+END //
+
+DELIMITER ;
+
+
+
+--3. sp_generar_sancion
+--Crea el registro de la sanción de forma proporcional (por ejemplo, 3 días de suspensión 
+--por cada día de mora) y cambia el estado del socio a 'SUSPENDIDO'.
+
+
+DELIMITER //
+
+CREATE PROCEDURE sp_generar_sancion(
+    IN p_id_socio INT,
+    IN p_tipo VARCHAR(50),
+    IN p_dias_mora INT
+)
+BEGIN
+    DECLARE v_dias_sancion INT;
+    
+    -- Lógica proporcional: 3 días de suspensión por cada día de retraso
+    SET v_dias_sancion = p_dias_mora * 3;
+
+    -- Insertar la sanción correspondiente
+    INSERT INTO sancion (id_socio, tipo, fecha_inicio, fecha_fin, motivo)
+    VALUES (
+        p_id_socio, 
+        p_tipo, 
+        CURRENT_DATE, 
+        DATE_ADD(CURRENT_DATE, INTERVAL v_dias_sancion DAY), 
+        CONCAT('Sanción automática por ', p_dias_mora, ' días de mora.')
+    );
+
+    -- Cambiar el estado del socio en su tabla
+    UPDATE socio SET estado = 'SUSPENDIDO' WHERE id_socio = p_id_socio;
+END //
+
+DELIMITER ;
