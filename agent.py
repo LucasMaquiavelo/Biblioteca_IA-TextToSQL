@@ -2,10 +2,8 @@ import os
 from dotenv import load_dotenv
 from groq import Groq
 
-# Cargamos las variables de entorno del archivo .env
 load_dotenv()
 
-# Inicializamos el cliente de Groq de forma segura
 API_KEY_GROQ = os.getenv("API_KEY_GROQ")
 client = Groq(api_key=API_KEY_GROQ)
 
@@ -29,13 +27,10 @@ Reglas de Negocio Cruciales:
 2. Si se piden datos de los socios, une `socio` con `prestamo` usando `id_socio`.
 3. Los únicos valores posibles para la columna `estado` en la tabla `socio` son 'ACTIVO' o 'SUSPENDIDO'. Si te piden socios suspendidos, usa exactamente 'SUSPENDIDO'.
 4. Responde ÚNICAMENTE con la consulta SQL pura. NO uses bloques de código Markdown (```sql), ni agregues texto extra. Solo el texto del SELECT.
-5. Si te piden libros con préstamos simultáneos o solapados en el tiempo, debes cruzar la tabla `ejemplar` y `prestamo` dos veces (hacer un Self-Join implícito por libro). La condición matemática para que dos préstamos (p1 y p2) del mismo libro (mismo isbn) pero de distintos ejemplares (p1.id_ejemplar <> p2.id_ejemplar) se hayan superpuesto en el tiempo es: (p1.fecha_prestamo <= p2.fecha_devolucion AND p1.fecha_devolucion >= p2.fecha_prestamo).
+5. Si te piden libros con préstamos simultáneos o solapados en el tiempo, debes hacer un Autocruce (Self-Join) de la tabla `prestamo` (p1 y p2) cruzando con sus respectivos ejemplares (e1 y e2) para igualar el ISBN del libro (e1.isbn = e2.isbn) y asegurar que sean ejemplares diferentes (p1.id_ejemplar <> p2.id_ejemplar). Para resolver esto NO uses bajo ningún concepto cláusulas `GROUP BY` ni `HAVING`, utiliza simplemente `SELECT DISTINCT e1.id_ejemplar, l.titulo` para evitar conflictos con el modo ONLY_FULL_GROUP_BY de MySQL. La condición temporal estricta de simultaneidad es: (p1.fecha_prestamo <= p2.fecha_devolucion AND p1.fecha_devolucion >= p2.fecha_prestamo).
 """
 
 def pregunta_a_sql(pregunta_usuario: str) -> str:
-    """
-    Traduce una pregunta en lenguaje natural a una consulta SQL pura usando Llama 3.3 en Groq.
-    """
     try:
         completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",

@@ -9,7 +9,7 @@ from agent import pregunta_a_sql
 def ejecutar_agente(pregunta_usuario: str):
     """
     Orquesta el flujo: recibe la pregunta, llama al agente (agent.py) 
-    para generar el SQL, ejecuta en MySQL y muestra los datos en consola.
+    para generar el SQL, ejecuta en MySQL usando SQLAlchemy y muestra los datos.
     """
     # 1. Cargamos las credenciales desde el .env
     load_dotenv()
@@ -22,12 +22,11 @@ def ejecutar_agente(pregunta_usuario: str):
     print(f"💻 SQL Generado por el Agente:\n{sql_generado}")
     print("="*60)
     
-    # Si la IA falló por alguna razón técnica, cortamos acá
     if sql_generado.startswith("--"):
         print(sql_generado)
         return
 
-    # 3. Armamos el motor de conexión con SQLAlchemy para evitar los warnings molestos
+    # 3. Armamos el motor de conexión con SQLAlchemy para evitar los warnings de Pandas
     usuario = os.getenv("DB_USER")
     password = os.getenv("DB_PASSWORD")
     host = os.getenv("DB_HOST", "localhost")
@@ -53,5 +52,5 @@ def ejecutar_agente(pregunta_usuario: str):
 # --- BLOQUE DE EJECUCIÓN DIRECTA DESDE TERMINAL ---
 if __name__ == "__main__":
     # Una prueba rápida para cuando ejecutes: 'python main.py'
-    consulta_prueba = "¿Cuántos libros hay de cada género en la biblioteca?"
+    consulta_prueba = "¿Cuáles son los títulos de los libros que tenemos en la biblioteca?"
     ejecutar_agente(consulta_prueba)
