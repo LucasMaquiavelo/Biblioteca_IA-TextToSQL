@@ -1,0 +1,19 @@
+# Python - Archivos temporales y caché
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+
+# Entornos virtuales
+venv/
+.venv/
+env/
+
+# Configuración local y Credenciales (¡SÚPER IMPORTANTE!)
+.env
+.vscode/
+
+# Bases de datos locales que no van al repo de código
+*.db
+*.sqlite3
