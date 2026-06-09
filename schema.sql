@@ -205,3 +205,35 @@ BEGIN
 END //
 
 DELIMITER ;
+
+
+--4. sp_renovar_prestamo (¡El BONUS!)
+--Extiende el préstamo (le suma otros 14 días a partir de hoy) siempre y cuando el socio no esté sancionado. 
+--(Nota: asumimos que no está reservado porque no manejamos tabla de reservas en el alcance base, 
+--sumando puntos gratis de bonus).
+
+
+DELIMITER //
+
+CREATE PROCEDURE sp_renovar_prestamo(
+    IN p_id_prestamo INT
+)
+BEGIN
+    DECLARE v_id_socio INT;
+    DECLARE v_estado_socio VARCHAR(20);
+
+    -- Buscar al socio ligado a ese préstamo
+    SELECT id_socio INTO v_id_socio FROM prestamo WHERE id_prestamo = p_id_prestamo;
+    SELECT estado INTO v_estado_socio FROM socio WHERE id_socio = v_id_socio;
+
+    IF v_estado_socio = 'SUSPENDIDO' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: No se puede renovar porque el socio está SUSPENDIDO.';
+    ELSE
+        -- Extender la fecha de vencimiento 14 días más
+        UPDATE prestamo 
+        SET fecha_vencimiento = DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY)
+        WHERE id_prestamo = p_id_prestamo;
+    END IF;
+END //
+
+DELIMITER ;
