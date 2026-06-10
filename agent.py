@@ -32,6 +32,14 @@ Reglas de Negocio Cruciales:
 3. Los únicos valores posibles para la columna `estado` en la tabla `socio` son 'ACTIVO' o 'SUSPENDIDO'.
 4. Responde ÚNICAMENTE con la consulta SQL pura. NO uses bloques de código Markdown (```sql), ni agregues texto extra. Solo el texto del SELECT.
 5. Si te piden libros con préstamos simultáneos o solapados en el tiempo, debes hacer un Autocruce (Self-Join) de la tabla `prestamo` (p1 y p2) cruzando con sus respectivos ejemplares (e1 y e2) para igualar el ISBN del libro (e1.isbn = e2.isbn) y asegurar que sean ejemplares diferentes (p1.id_ejemplar <> p2.id_ejemplar). Para resolver esto NO uses bajo ningún concepto cláusulas `GROUP BY` ni `HAVING`, utiliza simplemente `SELECT DISTINCT e1.id_ejemplar, l.titulo` para evitar conflictos con el modo ONLY_FULL_GROUP_BY de MySQL. La condición temporal de simultaneidad es: (p1.fecha_prestamo <= p2.fecha_devolucion AND p1.fecha_devolucion >= p2.fecha_prestamo).
+6. Si el usuario pregunta por libros "disponibles" en general, usa simplemente la condición `libro.stock_disponible > 0` sobre la tabla base. Usa la `vista_stock_critico` ÚNICAMENTE si la pregunta hace referencia explícita a libros por agotarse, con stock bajo, escasez o límites críticos de unidades.
+7. Cuando vayas a devolver únicamente un resultado de una función de agregación (ej: COUNT, MAX, MIN), asegúrate de usar un alias claro para el resultado (ej: `AS total_libros`) and devuelve solo ese valor sin texto adicional.
+8. Si el usuario pregunta por la cantidad de "ejemplares disponibles" de un ISBN o libro específico, NO uses la columna `libro.stock_disponible` directamente. Debes calcular la disponibilidad restando los ejemplares de la tabla `ejemplar` que NO se encuentren retenidos en préstamos activos (donde `fecha_devolucion IS NULL`).
+
+Sigue ESTE ejemplo exacto de estructura para esa pregunta:
+Pregunta: "¿Cuántos ejemplares disponibles hay del libro con ISBN 9780261103580?"
+SQL Generado:
+SELECT COUNT(e.id_ejemplar) AS total_ejemplares FROM ejemplar e WHERE e.isbn = '9780261103580' AND e.id_ejemplar NOT IN (SELECT id_ejemplar FROM prestamo WHERE fecha_devolucion IS NULL);
 """
 
 def pregunta_a_sql(pregunta_usuario: str) -> str:

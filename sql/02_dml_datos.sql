@@ -123,6 +123,10 @@ INSERT INTO socio (id_socio, dni, nombre, apellido, email, fecha_alta, estado) V
 -- 9. INSERTAR SANCIONES ACTIVAS (Para cumplir consistencia)
 INSERT INTO sancion (id_sancion, id_socio, tipo, fecha_inicio, fecha_fin, motivo) VALUES
 (1, 3, 'MORA_GRAVE', '2026-05-20', '2026-06-20', 'No devolvió el ejemplar 6 en la fecha límite.');
+INSERT INTO sancion (id_sancion, id_socio, tipo, fecha_inicio, fecha_fin, motivo)
+VALUES (2, 3, 'SUSPENSION', '2026-05-25', '2026-06-01', 'Devolución con daño severo en ejemplar');
+INSERT INTO sancion (id_sancion, id_socio, tipo, fecha_inicio, fecha_fin, motivo)
+VALUES (3, 8, 'SUSPENSION', '2026-06-02', '2026-06-09', 'Demora de más de 15 días en la entrega');
 
 -- 10. INSERTAR PRÉSTAMOS (Mínimo 50 requeridos entre devueltos, activos y vencidos)
 -- Se simulan préstamos históricos de los años 2025 y 2026 para cumplir la cuota del TP
